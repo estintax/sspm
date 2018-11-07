@@ -1,0 +1,27 @@
+#!/bin/sh
+
+# sspm 0 - shell script package manager
+# Copyright (c) 2018, Maksim Pinigin
+
+if [ -z $1 ]; then
+	echo "Usage: $0 ACTION PARAMS..."
+	echo ""
+	echo "Actions list:"
+	echo "  check - check for package existence"
+	echo ""
+	echo "Send bug reports to https://github.com/estintax/sspm"
+else
+	REPO=$(cat /etc/sspm/repository)
+	if [ $1 = "check" ]; then
+		if [ -z $2 ]; then
+			echo "Usage: $0 $1 PACKAGE"
+		else
+			wget --spider -S $REPO/index/$2
+			if [ $? = 0 ]; then
+				echo "Package $2 exists."
+			else
+				echo "Package $2 is not exists."
+			fi
+		fi
+	fi
+fi
