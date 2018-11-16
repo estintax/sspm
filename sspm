@@ -6,11 +6,21 @@
 function package_check {
 	wget -q --spider $REPO/index/$1
 	if [ $? = 0 ]; then
-		echo "Package $1 exists."
-		DEPS=$(wget -q -O - $REPO/dependencies/$1)
-		echo "Dependencies: $DEPS"
+		if [ $2 = 1 ]; then
+			echo "Package $1 exists."
+			DEPS=$(wget -q -O - $REPO/dependencies/$1)
+			echo "Dependencies: $DEPS"
+			return 0
+		else
+			return 0
+		fi
 	else
-		echo "Package $1 is not exists."
+		if [ $2 = 1 ]; then
+			echo "Package $1 is not exists."
+			return 1
+		else
+			return 1
+		fi
 	fi
 }
 
@@ -31,7 +41,7 @@ else
 		if [ -z $2 ]; then
 			echo "Usage: $0 $1 PACKAGE"
 		else
-			package_check $2
+			package_check $2 1
 		fi
 	fi
 fi
