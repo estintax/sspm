@@ -3,6 +3,17 @@
 # sspm 0 - shell script package manager
 # Copyright (c) 2018, Maksim Pinigin
 
+function package_check {
+	wget -q --spider $REPO/index/$1
+	if [ $? = 0 ]; then
+		echo "Package $1 exists."
+		DEPS=$(wget -q -O - $REPO/dependencies/$1)
+		echo "Dependencies: $DEPS"
+	else
+		echo "Package $1 is not exists."
+	fi
+}
+
 if [ -z $1 ]; then
 	echo "Usage: $0 ACTION PARAMS..."
 	echo ""
@@ -12,16 +23,15 @@ if [ -z $1 ]; then
 	echo "Send bug reports to https://github.com/estintax/sspm"
 else
 	REPO=$(cat /etc/sspm/repository)
+	if [ $? = 1 ]; then
+		echo "Please, specify repository in /etc/sspm/repository"
+		exit 2
+	fi
 	if [ $1 = "check" ]; then
 		if [ -z $2 ]; then
 			echo "Usage: $0 $1 PACKAGE"
 		else
-			wget --spider -S $REPO/index/$2
-			if [ $? = 0 ]; then
-				echo "Package $2 exists."
-			else
-				echo "Package $2 is not exists."
-			fi
+			package_check $2
 		fi
 	fi
 fi
