@@ -49,14 +49,12 @@ function package_verify {
 		echo "Actually: $NOWSUM"
 		printf "Checksums do not match, anyway continue? (DANGEROUSLY) [y/N] "
 		read answer
-		if [ -z answer ]; then
+		if [[ -z $answer ]] || ! [[ $answer = "y" ]]; then
 			echo "Abort."
-			return 1
-		elif [ answer = "y" ]; then
-			return 0
-		else
-			echo "Abort."
-			return 1
+			for p in $PKGSTOINSTALL; do
+				rm /tmp/$p
+			done
+			exit 8
 		fi
 	fi
 }
@@ -103,7 +101,7 @@ function package_all {
 	for d in $PKGWITHDEPS; do
 		installed_check $d
 		if [ $? = 1 ]; then
-			if [ -z $PKGSTOINSTALL ]; then
+			if [ -z "$PKGSTOINSTALL" ]; then
 				PKGSTOINSTALL="$d"
 			else
 				PKGSTOINSTALL="$PKGSTOINSTALL $d"
@@ -111,7 +109,7 @@ function package_all {
 		fi
 	done
 	
-	if [ -z $PKGSTOINSTALL ]; then
+	if [ -z "$PKGSTOINSTALL" ]; then
 		echo "Nothing to do."
 		exit 9
 	fi
@@ -168,7 +166,7 @@ function package_checkoninstalled {
 	fi
 	INSTALLEDPKGS=$(cat /etc/sspm/installed)
 	for p in $INSTALLEDPKGS; do
-		if [ $p = $1 ]; then
+		if [ "$p" = "$1" ]; then
 			return 0
 		fi
 	done
