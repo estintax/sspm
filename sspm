@@ -67,7 +67,7 @@ function package_install {
 		tar -xf /tmp/$1 -C /
 		if [ $? = 0 ]; then
 			INSTALLEDPKGS=$(cat /etc/sspm/installed)
-			if [ -z $INSTALLEDPKGS ]; then
+			if [ -z "$INSTALLEDPKGS" ]; then
 				echo "$1" > /etc/sspm/installed
 			else
 				echo "$INSTALLEDPKGS $1" > /etc/sspm/installed
@@ -161,6 +161,66 @@ function installed_check {
 	return 1
 }
 
+function package_checkoninstalled {
+	if ! [ -f /etc/sspm/installed ]; then
+		touch /etc/sspm/installed
+		echo "List of installed packages is not exists, created new."
+	fi
+	INSTALLEDPKGS=$(cat /etc/sspm/installed)
+	for p in $INSTALLEDPKGS; do
+		if [ $p = $1 ]; then
+			return 0
+		fi
+	done
+	return 1
+}
+
+function package_remove {
+	printf "Retrieving files list from package $1... "
+	wget -q -P /tmp $REPO/index/$1
+	FILES=$(tar -tf /tmp/$1)
+	echo "done"
+	printf "Removing $1... "
+	cd /
+	for f in $FILES; do
+		if [ -f $f ] && ! [ -d $f ]; then
+			rm -f $f
+		fi
+	done
+	
+	INSTALLEDPKGS=$(sed "s/$1//" /etc/sspm/installed)
+	echo "$INSTALLEDPKGS" > /etc/sspm/installed
+	
+	FIRSTWORD=$(cut -c-1 /etc/sspm/installed)
+	if [ "$FIRSTWORD" = " " ]; then
+		INSTALLEDPKGS=$(cut -c2- /etc/sspm/installed)
+		echo "$INSTALLEDPKGS" > /etc/sspm/installed
+	fi
+	
+	echo "ok"
+	
+	rm /tmp/$1
+}
+
+function package_remove_req {
+	package_checkoninstalled $1
+	if [ $? != 0 ]; then
+		echo "Package $1 is not installed."
+		exit 10
+	fi
+	
+	echo "The following packages will be permanently removed:"
+	echo "  $1"
+	printf "Continue? [Y/n] "
+	read answer
+	if ! [[ -z $answer ]] && ! [[ $answer = "y" ]]; then
+		echo "Abort."
+		exit 8
+	fi
+	
+	package_remove $1
+}
+
 if [ $USER != "root" ]; then
 	echo "You must be root."
 	exit 4
@@ -172,6 +232,7 @@ if [ -z $1 ]; then
 	echo "Actions list:"
 	echo "  check - check for package existence"
 	echo "  install - install package with dependencies"
+	echo "  remove - remove package"
 	echo ""
 	echo "Send bug reports to https://github.com/estintax/sspm"
 else
@@ -192,6 +253,13 @@ else
 			echo "Usage: $0 $1 PACKAGE"
 		else
 			package_all $2
+		fi
+	fi
+	if [ $1 = "remove" ]; then
+		if [ -z $2 ]; then
+			echo "Usage: $0 $1 PACKAGE"
+		else
+			package_remove_req $2
 		fi
 	fi
 fi
