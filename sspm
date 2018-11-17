@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# sspm 0 - shell script package manager
+# sspm - shell script package manager
 # Copyright (c) 2018, Maksim Pinigin
 
 function package_check {
@@ -24,11 +24,154 @@ function package_check {
 	fi
 }
 
+function package_download {
+	printf "Downloading $REPO/index/$1... "
+	wget -q -P /tmp $REPO/index/$1
+	if [ $? != 0 ]; then
+		echo "Error while downloading $1, exit."
+		exit 200
+	else
+		echo "done"
+	fi
+}
+
+function package_verify {
+	printf "Verifying $1... "
+	cd /tmp
+	CHECKSUM=$(wget -q -O - $REPO/checksums/$1)
+	NOWSUM=$(sha256sum $1)
+	if [ "$NOWSUM" = "$CHECKSUM" ]; then
+		echo "ok"
+		return 0
+	else
+		echo "error"
+		echo "Legally: $CHECKSUM"
+		echo "Actually: $NOWSUM"
+		printf "Checksums do not match, anyway continue? (DANGEROUSLY) [y/N] "
+		read answer
+		if [ -z answer ]; then
+			echo "Abort."
+			return 1
+		elif [ answer = "y" ]; then
+			return 0
+		else
+			echo "Abort."
+			return 1
+		fi
+	fi
+}
+
+function package_install {
+	printf "Installing $1... "
+	if [ -f /tmp/$1 ]; then
+		tar -xf /tmp/$1 -C /
+		if [ $? = 0 ]; then
+			INSTALLEDPKGS=$(cat /etc/sspm/installed)
+			if [ -z $INSTALLEDPKGS ]; then
+				echo "$1" > /etc/sspm/installed
+			else
+				echo "$INSTALLEDPKGS $1" > /etc/sspm/installed
+			fi
+			echo "ok"
+			return 0
+		else
+			echo "error"
+			echo "Error."
+			exit 8
+		fi
+	else
+		echo "error"
+		echo "Package $1 does not exist on your computer, exit."
+		exit 7
+	fi
+}
+
+function package_all {
+	package_check $1 0
+	if [ $? = 1 ]; then
+		echo "Package $1 is not exists."
+		exit 3
+	fi
+	
+	DEPS=$(wget -q -O - $REPO/dependencies/$1)
+	PKGWITHDEPS="$DEPS $1"
+	if [ -f /etc/sspm/installed ]; then
+		touch /etc/sspm/installed
+	fi
+	
+	INSTALLEDPKGS=$(cat /etc/sspm/installed)
+	for d in $PKGWITHDEPS; do
+		installed_check $d
+		if [ $? = 1 ]; then
+			if [ -z $PKGSTOINSTALL ]; then
+				PKGSTOINSTALL="$d"
+			else
+				PKGSTOINSTALL="$PKGSTOINSTALL $d"
+			fi
+		fi
+	done
+	
+	if [ -z $PKGSTOINSTALL ]; then
+		echo "Nothing to do."
+		exit 9
+	fi
+	
+	echo "The following packages will be installed:"
+	echo "  $PKGSTOINSTALL"
+	printf "Continue? [Y/n] "
+	read answer
+	if ! [[ -z $answer ]] && ! [[ $answer = "y" ]]; then
+		echo "Abort."
+		exit 8
+	fi
+	
+	# Downloading packages
+	for p in $PKGSTOINSTALL; do
+		package_download $p
+	done
+	
+	# Verifying packages
+	for p in $PKGSTOINSTALL; do
+		package_verify $p
+		if [ $? = 1 ]; then
+			for tp in $PKGSTOINSTALL; do
+				rm /tmp/$tp
+			done
+			exit 6
+		fi
+	done
+	
+	# Installing packages
+	for p in $PKGSTOINSTALL; do
+		package_install $p
+	done
+	
+	# Cleaning
+	for p in $PKGSTOINSTALL; do
+		rm /tmp/$p
+	done
+}
+
+function installed_check {
+	for i in $INSTALLEDPKGS; do
+		if [ $i = $1 ]; then
+			return 0
+		fi
+	done
+	return 1
+}
+
+if [ $USER != "root" ]; then
+	echo "You must be root."
+	exit 4
+fi
+
 if [ -z $1 ]; then
 	echo "Usage: $0 ACTION PARAMS..."
 	echo ""
 	echo "Actions list:"
 	echo "  check - check for package existence"
+	echo "  install - install package with dependencies"
 	echo ""
 	echo "Send bug reports to https://github.com/estintax/sspm"
 else
@@ -42,6 +185,13 @@ else
 			echo "Usage: $0 $1 PACKAGE"
 		else
 			package_check $2 1
+		fi
+	fi
+	if [ $1 = "install" ]; then
+		if [ -z $2 ]; then
+			echo "Usage: $0 $1 PACKAGE"
+		else
+			package_all $2
 		fi
 	fi
 fi
