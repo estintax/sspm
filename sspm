@@ -181,7 +181,7 @@ function package_remove {
 	printf "Removing $1... "
 	cd /
 	for f in $FILES; do
-		if [ -f $f ] && ! [ -d $f ]; then
+		if [ -e $f ] && ! [ -d $f ]; then
 			rm -f $f
 		fi
 	done
